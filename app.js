@@ -1,36 +1,125 @@
 const express = require('express');
 const fs = require('fs');
+const url = require('url');
 
 const app = express();
 
-/* app.get('/', (req, res) => {
-  // handlujemy request get głownej strony
-  res
-    .status(200)
-    .json({ message: 'hello from the server side!', app: 'Natours' });
-});
-
-app.post('/', (req, res) => {
-  res.send('You can post to this endpoint...');
-}); */
+app.use(express.json());
 
 // We read file before route handler
 // because top level code is executed once
 const tours = JSON.parse(
   fs.readFileSync(`${__dirname}/dev-data/data/tours-simple.json`)
 );
-console.log(tours);
 
-app.get('/api/v1/tours', (req, res) => {
+const getAllTours = (req, res) => {
   res.status(200).json({
     status: 'success',
     results: tours.length,
-    data: { tours },
+    data: {
+      tours,
+    },
   });
-});
+};
+
+const getTour = (req, res) => {
+  const id = Number(req.params.id);
+  const tour = tours.find((el) => el.id === id);
+
+  if (!tour) {
+    return res.status(404).json({
+      status: 'fail',
+      message: 'Invalid ID!',
+    });
+  }
+
+  res.status(201).json({
+    status: 'success',
+    data: {
+      tour,
+    },
+  });
+};
+
+const createTour = (req, res) => {
+  // console.log(req.body);
+
+  const newId = tours[tours.length - 1].id + 1;
+  const newTour = Object.assign({ id: newId }, req.body);
+
+  tours.push(newTour);
+
+  // we are in callback function so never use writeFileSync
+  fs.writeFile(
+    `${__dirname}/dev-data/data/tours-simple.json`,
+    JSON.stringify(tours),
+    (err) => {
+      res.status(201).json({
+        status: 'success',
+        data: { tour: newTour },
+      }); // 201 stands for created
+    }
+  );
+};
+
+const updateTour = (req, res) => {
+  const id = Number(req.params.id);
+  const tour = tours.find((el) => el.id === id);
+
+  if (!tour) {
+    return res.status(404).json({
+      status: 'fail',
+      message: 'Invalid ID!',
+    });
+  }
+
+  const updatedObj = { ...tour, ...req.body };
+  const updatedAllObj = tours.map((el) =>
+    el.id === updatedObj.id ? updatedObj : el
+  );
+
+  fs.writeFile(
+    `${__dirname}/dev-data/data/tours-simple.json`,
+    JSON.stringify(updatedAllObj),
+    (err) => res.status(200).json({ status: 'success', data: updatedAllObj })
+  );
+};
+
+const deleteTour = (req, res) => {
+  const id = Number(req.params.id);
+  console.log(id);
+  const tour = tours.find((el) => el.id === id);
+  console.log(tour);
+
+  if (!tour) {
+    return res.status(404).json({
+      status: 'fail',
+      message: 'Invalid ID!',
+    });
+  }
+
+  const updatedAllObj = tours.filter((el) => el.id !== id);
+  console.log(updatedAllObj);
+
+  fs.writeFile(
+    `${__dirname}/dev-data/data/tours-simple.json`,
+    JSON.stringify(updatedAllObj),
+    (err) =>
+      res.status(204).json({
+        status: 'success',
+        message: `tour ${id} was successfully deleted`,
+        data: null,
+      })
+  );
+};
+
+app.get(`/api/v1/tours/:id`, getTour);
+app.get('/api/v1/tours', getAllTours);
+app.post('/api/v1/tours', createTour);
+app.patch('/api/v1/tours/:id', updateTour);
+app.delete('/api/v1/tours/:id', deleteTour);
 
 const port = 3000;
-
 app.listen(port, () => {
   console.log(`App running on port ${port}...`);
 });
